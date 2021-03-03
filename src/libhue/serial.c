@@ -27,8 +27,8 @@ int set_interface_attribs(int fd) {
 	tty.c_oflag &= ~OPOST;
 
 	/* fetch bytes as they become available */
-	tty.c_cc[VMIN] = 1;
-	tty.c_cc[VTIME] = 1;
+	tty.c_cc[VMIN] = 0;
+	tty.c_cc[VTIME] = 0;
 
 	if (tcsetattr(fd, TCSANOW, &tty) != 0) {
 		printf("Error from tcetatr: %s\n", strerror(errno));	

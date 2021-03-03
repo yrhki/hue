@@ -4,12 +4,18 @@
 #include <stdint.h>
 #include <string.h>
 #include <getopt.h>
+#include <assert.h>
 
-#include "serial.h"
-#include "baudrate.h"
-#include "hue.h"
+#include "libhue/hue.h"
 
-int parse_color(char* hexstring, Color* color) {
+#define CURRENT_ARG argv[optind]
+#define MAXV(value, max) if (value > max ) value = max
+
+#define MAX_SPEED 4
+#define MAX_GROUP 3
+#define MAX_CHANNEL 2
+
+int parse_color(char* hexstring, hue_color* color) {
 	size_t length = strlen(hexstring);
 	if (length == 3 || length == 6) {
 		int delim = length / 3;
@@ -21,63 +27,160 @@ int parse_color(char* hexstring, Color* color) {
 		strncpy(green, hexstring + (delim * 1), delim);
 		strncpy(blue, hexstring + (delim * 2), delim);
 	
-		color->Red = strtol(red, NULL, 16); 
-		color->Green = strtol(green, NULL, 16); 
-		color->Blue = strtol(blue, NULL, 16); 
+		color->red = strtol(red, NULL, 16); 
+		color->green = strtol(green, NULL, 16); 
+		color->blue = strtol(blue, NULL, 16); 
 		return 0;
 	} else {
 		return -1;
 	}
 }
 
+int parse_mode(char* input, hue_mode *mode) {
+		if (strcmp(input, "fixed") == 0)
+            *mode = HUE_MODE_FIXED;
+		else if (strcmp(input, "fading") == 0)
+			*mode = HUE_MODE_FADING;
+		else if (strcmp(input, "spectrum") == 0)
+			*mode = HUE_MODE_SPECTRUM;
+		else if (strcmp(input, "marquee") == 0)
+			*mode = HUE_MODE_MARQUEE;
+		else if (strcmp(input, "cmarquee") == 0)
+			*mode = HUE_MODE_COVER_MARQUEE;
+		else if (strcmp(input, "alternating") == 0)
+			*mode = HUE_MODE_ALTERNATING;
+		else if (strcmp(input, "pulse") == 0)
+			*mode = HUE_MODE_PULSE;
+		else if (strcmp(input, "breathing") == 0)
+			*mode = HUE_MODE_BREATHING;
+		else if (strcmp(input, "alert") == 0)
+			*mode = HUE_MODE_ALERT;
+		else if (strcmp(input, "candle") == 0)
+			*mode = HUE_MODE_CANDLE;
+		else if (strcmp(input, "wings") == 0)
+			*mode = HUE_MODE_WINGS;
+		else if (strcmp(input, "wave") == 0)
+			*mode = HUE_MODE_WAVE;
+		else if (strcmp(input, "direct") == 0)
+			*mode = HUE_MODE_DIRECT;
+		else {
+            return -1;
+		}
+        return 0;
+}
+
+int get_colors(int argc, char* argv[], hue_color* colors[], int *optind, int min, int max)
+{
+    assert(optind);
+    int color_len = argc - *optind;
+    *colors = malloc(sizeof(hue_color) * color_len);
+    if (min == 0 && max == 0) return 1;
+    if (color_len < min) return -2;
+    if (color_len > max) color_len = max;
+    hue_color *c = *colors;
+    for (int i = 0; i < color_len; ++i) {
+        c[i].blue = 2;
+        c[i].red = 0;
+        c[i].green = 0;
+        if (parse_color(argv[*optind], &c[i]) < 0) {
+            return -3;
+        }
+        *optind = *optind + 1;
+    }
+    return color_len;
+}
+
+void print_usage(char* name)
+{
+    printf("Usage: %s\n"
+           "    init                      reset leds\n"
+           "    mode                      set led colors\n"
+           "        fixed <color>         set static color\n"
+           "        fading <colors>       set fading colors 2..8\n"
+           "                              options: speed\n"                 
+           "        spectrum              set spectrum\n"
+           "                              options: speed, reverse\n"                 
+           "        marquee <color>       set marquee\n"
+           "                              options: speed, group, reverse\n"                 
+           "        cmarquee <color>      set cover marquee 2..8\n"
+           "                              options: speed, reverse\n"                 
+           "        alternating <colors>  set alternating between 2 colors\n"
+           "                              options: speed, moving, group, reverse\n"                 
+           "        pulse <colors>        set pulse 1..8 colors\n"
+           "                              options: speed\n"                 
+           "        breathing <colors>    set breathing 1..8 colors\n"
+           "                              options: speed\n"                 
+           "        alert <colors>        set alert 1..2 colors\n"
+           "                              group changes blinking interval\n"                 
+           "                              don't use speed\n"                 
+           "                              options: group, speed\n"                 
+           "        candle <color>        set candle\n"
+           "                              options: speed\n"                 
+           "        wings <color>         set wings\n"
+           "                              options: speed\n"                 
+           "        wave <color>          set wave\n"
+           "        direct <color>        same as fixed\n"
+           "\n", name);
+}
 
 int main(int argc, char* argv[]) {
-
 	char* name = argv[0];
 	char* portname = "/dev/ttyACM0";
-	int mode = 0;
 	int EXIT_CODE = 0;
+
+    enum hue_direction direction = 0;
+    enum hue_speed speed = 0;
+    enum hue_group group = 0;
+    enum hue_movement movement = 0;
 
 	while (1) {
 		static struct option long_options[] =
 		{
-			//{"verbose",	no_argument,	&verbose_flag, 'V'}
-			{"version", no_argument,		0,	'v'},
-			{"help",	no_argument,		0,	'h'},
-			{"serial",	required_argument,	0,	's'},
+			{"version", no_argument,		NULL,	0},
+			{"help",	no_argument,		NULL,	0},
+			{"serial",	required_argument,	NULL,	0},
+			{"speed",	required_argument,	NULL,	's'},
+			{"group",	required_argument,	NULL,	'g'},
+			{"reverse",	no_argument,	    NULL,	'r'},
+			{"moving",	no_argument,	    NULL,	'm'},
 			
 			{0,0,0,0}
 		};
 		int c, option_index;
-		//int this_option_optind = optind ? optind : 1;
 
-		c = getopt_long(argc, argv, "vhs:", long_options, &option_index);
+		c = getopt_long(argc, argv, "vhs:g:rm", long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
-			case 's':
-				printf("SERIAL: %s\n", optarg);
-				portname = optarg;
+            case 'm':
+                movement = HUE_MOVEMENT_MOVING;
+				break;
+            case 'r':
+                direction = HUE_DIRECTION_BACKWARD;
+				break;
+            case 's':
+                speed = atoi(optarg);
+                MAXV(speed, MAX_SPEED);
+				break;
+            case 'g':
+                group = atoi(optarg);
+                MAXV(group, MAX_GROUP);
 				break;
 			case 'v':
 				break;
 			default:
-				fprintf(stderr, "Usage: %s [-s serial] mode colors\n", name);
-				exit(EXIT_FAILURE);
+                print_usage(name);
+				exit(0);
 		}
 	}	
-
-	char* color_hex = {0};
 
 	if (optind >= argc) {
 		fprintf(stderr, "Expected argument after options\n");
 		exit(EXIT_FAILURE);
 	}
 
-	int fd = open_serial(portname);
+	int fd = hue_open(portname);
 	if (fd < 0) return 1;
-	set_interface_attribs(fd);
-	set_custom_baudrate(fd);
-	char* action = argv[optind];
+	char* action = CURRENT_ARG;
 
 	if (strcmp(action, "mode") == 0) {
 		optind++;
@@ -85,82 +188,83 @@ int main(int argc, char* argv[]) {
 			fprintf(stderr, "No mode passed\n");
 			goto close_error;
 		}
-		char* amode = argv[optind];
+        hue_mode mode = 0;
 
-		if (strcmp(amode, "fixed") == 0)
-			mode = FIXED;
-		else if (strcmp(amode, "fading") == 0)
-			mode = FADING;
-		else if (strcmp(amode, "spectrum") == 0)
-			mode = SPECTRUM;
-		else if (strcmp(amode, "marquee") == 0)
-			mode = MARQUEE;
-		else if (strcmp(amode, "cmarquee") == 0)
-			mode = COVER_MARQUEE;
-		else if (strcmp(amode, "alternating") == 0)
-			mode = ALTERNATING;
-		else if (strcmp(amode, "pulse") == 0)
-			mode = PULSE;
-		else if (strcmp(amode, "breathing") == 0)
-			mode = BREATHING;
-		else if (strcmp(amode, "alert") == 0)
-			mode = ALERT;
-		else if (strcmp(amode, "candle") == 0)
-			mode = CANDLE;
-		else if (strcmp(amode, "wings") == 0)
-			mode = WINGS;
-		else if (strcmp(amode, "wave") == 0)
-			mode = WAVE;
-		else {
-			fprintf(stderr, "Invalid mode: %s\n", amode);
-			//exit(EXIT_FAILURE);
+        if (parse_mode(CURRENT_ARG, &mode) == -1) {
+			fprintf(stderr, "Invalid mode: %s\n", CURRENT_ARG);
 			goto close_error;
-		}
+        }
 		optind++;
-		if (optind >= argc) {
-			fprintf(stderr, "No color passed\n");
-			goto close_error;
-		}
 
-		//init(fd);
-		int color_len = argc - optind;
-		Color* input_colors = NULL;
-		input_colors = realloc(input_colors, color_len * sizeof *input_colors);
-		if (input_colors == NULL)
-			goto close_error;
+        hue_color *colors = NULL;
+        int count = 0, min = 0, max = 0;
+        switch (mode) {
+            case HUE_MODE_FIXED: case HUE_MODE_CANDLE: case HUE_MODE_WINGS: case HUE_MODE_DIRECT:
+                min = max = 1;
+                break;
+            case HUE_MODE_FADING: case HUE_MODE_COVER_MARQUEE:
+                min = 2;
+                max = 8;
+                break;
+            case HUE_MODE_SPECTRUM:
+                min = max = 0;
+                break;
+            case HUE_MODE_ALTERNATING:
+                min = max = 2;
+                break;
+            case HUE_MODE_PULSE: case HUE_MODE_BREATHING:
+                min = 1;
+                max = 8;
+                break;
+            case HUE_MODE_ALERT: case HUE_MODE_WAVE:
+                min = 1;
+                max = 2;
+                break;
+            case HUE_MODE_MARQUEE:
+                min = max = 1;
+                movement = 0;
+                break;
+        }
 
-		for ( ; optind  < argc; ++optind) {
-			color_hex = argv[argc - color_len + (argc - optind -1)];
-			Color input_color = {0};
-			if (parse_color(color_hex, &input_color) != 0) {
-				fprintf(stderr, "Invalid color: %s\n", color_hex);
-				free(input_colors);
-				goto close_error;
-			}
-			input_colors[argc - optind - 1] = input_color;
-		}
+        count = get_colors(argc, argv, &colors, &optind, min, max);
+        if (count < 0) {
+            fprintf(stderr, "Invalid colors\n");
+            free(colors);
+            goto close_error;
+        }
 
-		set_strip(fd, 1, mode, 0, 0, 0, 0, input_colors, color_len);
-		free(input_colors);
-		goto close;		
-
-
+        enum hue_error ret = hue_set_strip(fd, 1, mode, direction, movement, group, speed, colors, count);
+        free(colors);
+        switch (ret) {
+            case HUE_ERR_NONE:
+                break;
+            case HUE_ERR_READ:
+                fprintf(stderr, "Failed to read\n");
+                break;
+            case HUE_ERR_LED:
+                fprintf(stderr, "No leds\n");
+                break;
+            case HUE_ERR_WRITE:
+                fprintf(stderr, "Failed to write\n");
+                break;
+            case HUE_ERR_STRIP:
+                fprintf(stderr, "Failed to get strip info\n");
+                break;
+            case HUE_ERR_STATUS:
+                fprintf(stderr, "Failed to get status\n");
+                break;
+            case HUE_ERR_ARG:
+                fprintf(stderr, "Invalid arguments\n");
+                break;
+        }
+        goto close;
 	} else if (strcmp(action, "init") == 0) {
-		uint8_t resp = init(fd);
-		printf("INIT: %d\n", resp);
+		hue_init(fd);
 		goto close;		
 	} else {
 		fprintf(stderr, "Unexpected action: %s\n", action);
 		goto close_error;
 	}
-
-
-
-
-
-	
-	
-
 close_error:
 	EXIT_CODE = 1;
 close:

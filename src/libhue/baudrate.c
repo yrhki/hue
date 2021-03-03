@@ -21,6 +21,7 @@ int set_custom_baudrate(int fd) {
         //printf("Changed successfully.\n");
     } else {
         perror("ioctl");
+        return -1;
     }
 	return 0;
 }
