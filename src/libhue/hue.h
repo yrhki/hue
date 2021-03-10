@@ -43,7 +43,8 @@ typedef enum hue_speed {
     HUE_SPEED_1,
     HUE_SPEED_2,
     HUE_SPEED_3,
-    HUE_SPEED_4
+    HUE_SPEED_4,
+    HUE_SPEED_5
 } hue_speed;
 
 /*! \enum GROUP

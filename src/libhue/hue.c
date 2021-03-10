@@ -100,7 +100,7 @@ enum hue_error hue_send(int fd, hue_packet *hue, hue_channel *channel, uint8_t i
 
     // Safety check
     VMINMAX(hue->direction, HUE_DIRECTION_FORWARD, HUE_DIRECTION_BACKWARD);
-    VMINMAX(hue->speed, HUE_SPEED_1, HUE_SPEED_4);
+    VMINMAX(hue->speed, HUE_SPEED_1, HUE_SPEED_5);
     VMINMAX(hue->group, HUE_GROUP_2, HUE_GROUP_10);
     VMINMAX(hue->movement, HUE_MOVEMENT_STILL, HUE_MOVEMENT_MOVING);
     VMINMAX(hue->mode, HUE_MODE_FIXED, HUE_MODE_DIRECT);
