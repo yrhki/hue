@@ -4,12 +4,17 @@ Terminal tool for NZXT Hue RGB controller
 
 ## Quick start
 
-```console
-make all
-```
+    make all
+    ./bin/hue-static init
+
+With debug
+
+    make DEBUG=y all
+    ./bin/hue-static init
+
 # Usage
 
-```console
+```
 Usage: ./bin/hue-static
 options
         -h, --help              print this help
