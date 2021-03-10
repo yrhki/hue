@@ -9,7 +9,11 @@
 #include "libhue/hue.h"
 
 #define CURRENT_ARG argv[optind]
-#define MAXV(value, max) if (value > max ) value = max
+#define MAXV(value, max, name)                            \
+    if (value > max || value < 0) {                       \
+        invalid_options = 1;                              \
+        fprintf(stderr, "Invalid option %s\n", name);   \
+    }
 
 #define MAX_SPEED 4
 #define MAX_GROUP 3
@@ -128,10 +132,12 @@ int main(int argc, char* argv[]) {
 	char* portname = "/dev/ttyACM0";
 	int EXIT_CODE = 0;
 
+    // Options
     enum hue_direction direction = 0;
     enum hue_speed speed = 0;
     enum hue_group group = 0;
     enum hue_movement movement = 0;
+    int invalid_options = 0;
 
 	while (1) {
 		static struct option long_options[] =
@@ -159,11 +165,11 @@ int main(int argc, char* argv[]) {
 				break;
             case 's':
                 speed = atoi(optarg);
-                MAXV(speed, MAX_SPEED);
+                MAXV(speed, MAX_SPEED, "speed");
 				break;
             case 'g':
                 group = atoi(optarg);
-                MAXV(group, MAX_GROUP);
+                MAXV(group, MAX_GROUP, "group");
 				break;
 			case 'v':
 				break;
@@ -172,6 +178,11 @@ int main(int argc, char* argv[]) {
 				exit(0);
 		}
 	}	
+    #ifdef DEBUG
+    printf("SPEED: %d, GROUP: %d, REVERSE: %d, MOVING: %d\n", speed, group, direction, movement);
+    #endif
+
+    if (invalid_options == 1) exit(1);
 
 	if (optind >= argc) {
 		fprintf(stderr, "Expected argument after options\n");
